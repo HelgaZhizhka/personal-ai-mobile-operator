@@ -13,7 +13,14 @@ const toResult = (value: unknown, message: string) => ({
   content: [{ type: "text" as const, text: message }],
 });
 
-export const createOperatorMcpServer = (service: OperatorService) => {
+interface OperatorMcpServerOptions {
+  writesEnabled?: boolean;
+}
+
+export const createOperatorMcpServer = (
+  service: OperatorService,
+  options: OperatorMcpServerOptions = { writesEnabled: true },
+) => {
   const server = new McpServer(
     { name: "personal-ai-mobile-operator", version: "0.1.0" },
     {
@@ -66,6 +73,10 @@ export const createOperatorMcpServer = (service: OperatorService) => {
       return toResult(progress, "Progress loaded.");
     },
   );
+
+  if (options.writesEnabled === false) {
+    return server;
+  }
 
   server.registerTool(
     "operator_save_update",

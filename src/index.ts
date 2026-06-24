@@ -19,6 +19,7 @@ const port = Number(process.env.PORT ?? 3000);
 const host = process.env.HOST ?? "127.0.0.1";
 const databaseUrl = process.env.DATABASE_URL;
 const memoryRootDir = process.env.MEMORY_ROOT_DIR ?? path.resolve(process.cwd(), "../..");
+const writesEnabled = process.env.MOBILE_OPERATOR_ENABLE_WRITES === "1";
 
 const loadBootstrapDocuments = async (): Promise<MemoryDocument[]> => {
   try {
@@ -53,10 +54,11 @@ if (database) {
 
 const tasks = new InMemoryTaskRepository();
 const service = new OperatorService(memory, tasks);
-const app = createHttpApp(service, host);
+const app = createHttpApp(service, host, { writesEnabled });
 
 const listener = app.listen(port, host, () => {
   console.log(`Personal AI Mobile Operator listening on http://${host}:${port}`);
+  console.log(`MCP write tools enabled: ${writesEnabled ? "yes" : "no"}`);
 });
 
 listener.on("error", (error) => {

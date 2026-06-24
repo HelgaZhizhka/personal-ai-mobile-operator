@@ -27,6 +27,8 @@ By default the server still uses synthetic in-memory seed data and cannot change
 
 For a standalone GitHub deployment, this directory can be pushed as its own private repository. The local `railway.json` runs the app, exposes `/health`, and uses safe bootstrap seed documents when the full Personal AI Operator Markdown root is not present.
 
+Cloud deploys are read-only by default. Set `MOBILE_OPERATOR_ENABLE_WRITES=1` only after OAuth is in place and the connector is ready for controlled writes.
+
 ## Local verification
 
 ```bash

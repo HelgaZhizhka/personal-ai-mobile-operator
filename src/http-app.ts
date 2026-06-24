@@ -4,7 +4,15 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { createOperatorMcpServer } from "./mcp-server.js";
 import type { OperatorService } from "./operator-service.js";
 
-export const createHttpApp = (service: OperatorService, host: string) => {
+interface HttpAppOptions {
+  writesEnabled?: boolean;
+}
+
+export const createHttpApp = (
+  service: OperatorService,
+  host: string,
+  options: HttpAppOptions = {},
+) => {
   const app = createMcpExpressApp({ host });
 
   app.get("/health", (_request, response) => {
@@ -12,7 +20,9 @@ export const createHttpApp = (service: OperatorService, host: string) => {
   });
 
   app.post("/mcp", async (request, response) => {
-    const server = createOperatorMcpServer(service);
+    const server = createOperatorMcpServer(service, {
+      writesEnabled: options.writesEnabled,
+    });
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
     });
