@@ -39,7 +39,11 @@ describe("HTTP app", () => {
 
     const health = await fetch(`http://127.0.0.1:${port}/health`);
     expect(health.status).toBe(200);
-    await expect(health.json()).resolves.toEqual({ status: "ok" });
+    await expect(health.json()).resolves.toEqual({
+      status: "ok",
+      writesEnabled: false,
+      mode: "read-only",
+    });
 
     const mcpGet = await fetch(`http://127.0.0.1:${port}/mcp`);
     expect(mcpGet.status).toBe(405);

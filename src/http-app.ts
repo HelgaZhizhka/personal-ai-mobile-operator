@@ -14,14 +14,19 @@ export const createHttpApp = (
   options: HttpAppOptions = {},
 ) => {
   const app = createMcpExpressApp({ host });
+  const writesEnabled = options.writesEnabled === true;
 
   app.get("/health", (_request, response) => {
-    response.json({ status: "ok" });
+    response.json({
+      status: "ok",
+      writesEnabled,
+      mode: writesEnabled ? "read-write" : "read-only",
+    });
   });
 
   app.post("/mcp", async (request, response) => {
     const server = createOperatorMcpServer(service, {
-      writesEnabled: options.writesEnabled,
+      writesEnabled,
     });
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
