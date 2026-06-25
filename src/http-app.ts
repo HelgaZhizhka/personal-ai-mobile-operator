@@ -6,6 +6,7 @@ import type { OperatorService } from "./operator-service.js";
 
 interface HttpAppOptions {
   writesEnabled?: boolean;
+  buildId?: string;
 }
 
 export const createHttpApp = (
@@ -15,12 +16,14 @@ export const createHttpApp = (
 ) => {
   const app = createMcpExpressApp({ host });
   const writesEnabled = options.writesEnabled === true;
+  const buildId = options.buildId ?? "local";
 
   app.get("/health", (_request, response) => {
     response.json({
       status: "ok",
       writesEnabled,
       mode: writesEnabled ? "read-write" : "read-only",
+      buildId,
     });
   });
 

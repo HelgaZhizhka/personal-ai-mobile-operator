@@ -30,7 +30,7 @@ describe("HTTP app", () => {
       new InMemoryMemoryRepository(createSeedDocuments()),
       new InMemoryTaskRepository(),
     );
-    const app = createHttpApp(service, "127.0.0.1");
+    const app = createHttpApp(service, "127.0.0.1", { buildId: "test" });
     const listener = app.listen(0, "127.0.0.1");
     listeners.push(listener);
 
@@ -43,6 +43,7 @@ describe("HTTP app", () => {
       status: "ok",
       writesEnabled: false,
       mode: "read-only",
+      buildId: "test",
     });
 
     const mcpGet = await fetch(`http://127.0.0.1:${port}/mcp`);
