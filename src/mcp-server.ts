@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import * as z from "zod/v4";
 
 import { readableModules, writableModules } from "./domain.js";
@@ -8,6 +9,148 @@ const readableModuleSchema = z.enum(readableModules);
 const writableModuleSchema = z.enum(writableModules);
 const prioritySchema = z.enum(["p1", "p2", "p3", "p4"]);
 const noAuthSecuritySchemes = [{ type: "noauth" as const }];
+const oauthWriteSecuritySchemes = [
+  { type: "oauth2" as const, scopes: ["operator.write"] },
+];
+
+const emptyInputSchema = {
+  $schema: "http://json-schema.org/draft-07/schema#",
+  type: "object",
+  properties: {},
+};
+
+const readOnlyTools = [
+  {
+    name: "operator_get_current",
+    title: "Get current focus",
+    description:
+      "Use when Olga asks what is current, what matters now, or what she should remember today.",
+    inputSchema: emptyInputSchema,
+    securitySchemes: noAuthSecuritySchemes,
+    _meta: { securitySchemes: noAuthSecuritySchemes },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+    execution: { taskSupport: "forbidden" },
+  },
+  {
+    name: "operator_get_context",
+    title: "Get relevant memory context",
+    description:
+      "Read one allowed memory module before giving context-aware advice. Health and therapy are intentionally unavailable.",
+    inputSchema: {
+      $schema: "http://json-schema.org/draft-07/schema#",
+      type: "object",
+      properties: {
+        module: {
+          type: "string",
+          enum: readableModules,
+        },
+      },
+      required: ["module"],
+    },
+    securitySchemes: noAuthSecuritySchemes,
+    _meta: { securitySchemes: noAuthSecuritySchemes },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+    execution: { taskSupport: "forbidden" },
+  },
+  {
+    name: "operator_get_progress",
+    title: "Get active progress",
+    description:
+      "Use when Olga asks about progress across current directions and concrete Todoist actions.",
+    inputSchema: emptyInputSchema,
+    securitySchemes: noAuthSecuritySchemes,
+    _meta: { securitySchemes: noAuthSecuritySchemes },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+    execution: { taskSupport: "forbidden" },
+  },
+] as const;
+
+const writeTools = [
+  {
+    name: "operator_save_update",
+    title: "Save a durable memory update",
+    description:
+      "Save confirmed durable context to one allowed module. Do not use for advice, temporary thoughts, tasks, health, or therapy.",
+    inputSchema: {
+      $schema: "http://json-schema.org/draft-07/schema#",
+      type: "object",
+      properties: {
+        module: { type: "string", enum: writableModules },
+        expectedVersion: { type: "integer", exclusiveMinimum: 0 },
+        nextContent: { type: "string", minLength: 1, maxLength: 50_000 },
+        reason: { type: "string", minLength: 3, maxLength: 500 },
+      },
+      required: ["module", "expectedVersion", "nextContent", "reason"],
+    },
+    securitySchemes: oauthWriteSecuritySchemes,
+    _meta: { securitySchemes: oauthWriteSecuritySchemes },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    execution: { taskSupport: "forbidden" },
+  },
+  {
+    name: "operator_create_task",
+    title: "Create one concrete Todoist task",
+    description:
+      "Create a specific action Olga explicitly wants to remember. Never turn ideas, advice, reference material, or obvious routine steps into tasks.",
+    inputSchema: {
+      $schema: "http://json-schema.org/draft-07/schema#",
+      type: "object",
+      properties: {
+        title: { type: "string", minLength: 3, maxLength: 300 },
+        due: { type: "string", maxLength: 100 },
+        priority: { default: "p3", type: "string", enum: ["p1", "p2", "p3", "p4"] },
+        project: { type: "string", maxLength: 200 },
+      },
+      required: ["title"],
+    },
+    securitySchemes: oauthWriteSecuritySchemes,
+    _meta: { securitySchemes: oauthWriteSecuritySchemes },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    execution: { taskSupport: "forbidden" },
+  },
+  {
+    name: "operator_undo_memory",
+    title: "Undo one memory revision",
+    description:
+      "Restore the document version immediately before a known revision. Use only after Olga explicitly asks to undo it.",
+    inputSchema: {
+      $schema: "http://json-schema.org/draft-07/schema#",
+      type: "object",
+      properties: {
+        revisionId: { type: "string", format: "uuid" },
+      },
+      required: ["revisionId"],
+    },
+    securitySchemes: oauthWriteSecuritySchemes,
+    _meta: { securitySchemes: oauthWriteSecuritySchemes },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    execution: { taskSupport: "forbidden" },
+  },
+] as const;
+
+const installOpenAiCompatibleToolsList = (
+  server: McpServer,
+  writesEnabled: boolean,
+) => {
+  server.server.setRequestHandler(ListToolsRequestSchema, () => ({
+    tools: writesEnabled ? [...readOnlyTools, ...writeTools] : readOnlyTools,
+  }));
+};
 
 const toResult = (value: unknown, message: string) => ({
   structuredContent: value as Record<string, unknown>,
@@ -79,6 +222,7 @@ export const createOperatorMcpServer = (
   );
 
   if (options.writesEnabled === false) {
+    installOpenAiCompatibleToolsList(server, false);
     return server;
   }
 
@@ -161,6 +305,8 @@ export const createOperatorMcpServer = (
       );
     },
   );
+
+  installOpenAiCompatibleToolsList(server, true);
 
   return server;
 };
