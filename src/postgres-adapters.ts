@@ -160,6 +160,32 @@ export class PostgresMemoryRepository implements MemoryRepository {
     return { imported, skipped };
   }
 
+  async refreshSeedDocuments(documents: MemoryDocument[]): Promise<ReadableModule[]> {
+    const updated: ReadableModule[] = [];
+
+    for (const document of documents) {
+      const result = await this.db.query<{ module: string }>(
+        `UPDATE documents
+         SET canonical_path = $2, content = $3, version = version + 1, updated_at = $4
+         WHERE module = $1
+           AND (canonical_path <> $2 OR content <> $3)
+         RETURNING module`,
+        [
+          document.module,
+          document.canonicalPath,
+          document.content,
+          document.updatedAt,
+        ],
+      );
+
+      if (result.rows.length > 0) {
+        updated.push(parseReadableModule(result.rows[0].module));
+      }
+    }
+
+    return updated;
+  }
+
   async save(input: {
     module: WritableModule;
     expectedVersion: number;

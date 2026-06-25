@@ -25,9 +25,15 @@ const buildId =
   process.env.APP_BUILD_ID ??
   "noauth-2026-06-25";
 
-const loadBootstrapDocuments = async (): Promise<MemoryDocument[]> => {
+const loadBootstrapDocuments = async (): Promise<{
+  documents: MemoryDocument[];
+  source: "markdown" | "seed";
+}> => {
   try {
-    return await loadAllowedMarkdownDocuments(memoryRootDir);
+    return {
+      documents: await loadAllowedMarkdownDocuments(memoryRootDir),
+      source: "markdown",
+    };
   } catch (error) {
     if (process.env.MEMORY_ROOT_DIR) {
       throw error;
@@ -36,7 +42,7 @@ const loadBootstrapDocuments = async (): Promise<MemoryDocument[]> => {
     console.warn(
       "Allowed Markdown memory was not found. Falling back to safe bootstrap seed documents.",
     );
-    return createSeedDocuments();
+    return { documents: createSeedDocuments(), source: "seed" };
   }
 };
 
@@ -47,11 +53,15 @@ if (database) {
   await runPostgresMigrations(database);
   memory = new PostgresMemoryRepository(database);
 
-  const documents = await loadBootstrapDocuments();
+  const { documents, source } = await loadBootstrapDocuments();
   const result = await memory.importDocuments(documents);
   console.log(
     `Imported memory documents: ${result.imported.length}, skipped existing: ${result.skipped.length}`,
   );
+  if (source === "seed" && !writesEnabled) {
+    const refreshed = await memory.refreshSeedDocuments(documents);
+    console.log(`Refreshed safe seed documents: ${refreshed.length}`);
+  }
 } else {
   memory = new InMemoryMemoryRepository(createSeedDocuments());
 }

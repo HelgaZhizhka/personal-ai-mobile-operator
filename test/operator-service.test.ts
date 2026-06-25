@@ -14,6 +14,20 @@ const createService = () =>
   );
 
 describe("OperatorService memory safety", () => {
+  it("returns a safe mobile current context instead of a technical placeholder", async () => {
+    const service = createService();
+
+    const current = await service.getCurrent();
+    const progress = await service.getProgress();
+
+    expect(current.focus).toContain("Safe mobile context");
+    expect(current.focus).toContain("read-only, no-auth bootstrap");
+    expect(current.focus).not.toContain("loaded from NOW.md in the real deployment");
+    expect(progress.waiting).toContain(
+      "Todoist sync is not connected in the no-auth MVP. Personal tasks stay in Todoist until OAuth is added.",
+    );
+  });
+
   it("creates a revision and can undo the immediately following change", async () => {
     const service = createService();
     const before = await service.getContext("projects");

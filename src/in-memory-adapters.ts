@@ -111,7 +111,12 @@ export class InMemoryTaskRepository implements TaskRepository {
     return {
       completed: [],
       active: this.tasks.map((task) => task.title),
-      waiting: [],
+      waiting:
+        this.tasks.length === 0
+          ? [
+              "Todoist sync is not connected in the no-auth MVP. Personal tasks stay in Todoist until OAuth is added.",
+            ]
+          : [],
     };
   }
 }
@@ -122,7 +127,20 @@ export const createSeedDocuments = (): MemoryDocument[] => {
     {
       module: "current",
       canonicalPath: "00-Inbox/NOW.md",
-      content: "Current focus is loaded from NOW.md in the real deployment.",
+      content: [
+        "Safe mobile context for Personal AI Operator.",
+        "",
+        "Mode: read-only, no-auth bootstrap. This deployment does not expose Olga's local Markdown files, Todoist tasks, health details, therapy notes, or private trip details.",
+        "",
+        "Current focus:",
+        "- Keep the mobile ChatGPT connector working from phone while the Mac is off.",
+        "- Continue the Ukraine trip with local Todoist as the canonical task list.",
+        "- Keep Personal AI Operator, AI learning, AI Radar, and AI Club as active directions.",
+        "",
+        "Why details are limited: real obligations and task statuses require OAuth before they can be safely exposed to a public remote MCP endpoint.",
+        "",
+        "Next technical step: add OAuth/Auth0, then connect a narrow read-only Todoist and Markdown context.",
+      ].join("\n"),
       version: 1,
       updatedAt,
     },
@@ -157,7 +175,13 @@ export const createSeedDocuments = (): MemoryDocument[] => {
     {
       module: "projects",
       canonicalPath: "05-Projects/projects.md",
-      content: "Active: Personal AI Operator, AI learning, AI Radar, AI Club and current trips.",
+      content: [
+        "Active safe directions:",
+        "- Personal AI Operator mobile MVP.",
+        "- AI learning and AI Club.",
+        "- AI Radar as a source for useful engineering signals.",
+        "- Current trips, tracked concretely in Todoist and local Markdown, not exposed through no-auth cloud mode.",
+      ].join("\n"),
       version: 1,
       updatedAt,
     },
