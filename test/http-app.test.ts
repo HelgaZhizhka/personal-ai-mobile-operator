@@ -49,5 +49,14 @@ describe("HTTP app", () => {
     const mcpGet = await fetch(`http://127.0.0.1:${port}/mcp`);
     expect(mcpGet.status).toBe(405);
     expect(mcpGet.headers.get("allow")).toBe("POST");
+
+    const mcpOptions = await fetch(`http://127.0.0.1:${port}/mcp`, {
+      method: "OPTIONS",
+    });
+    expect(mcpOptions.status).toBe(204);
+    expect(mcpOptions.headers.get("access-control-allow-origin")).toBe("*");
+    expect(mcpOptions.headers.get("access-control-allow-methods")).toContain(
+      "POST",
+    );
   });
 });

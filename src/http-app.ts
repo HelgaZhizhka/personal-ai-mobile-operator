@@ -1,5 +1,6 @@
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import type { Response } from "express";
 
 import { createOperatorMcpServer } from "./mcp-server.js";
 import type { OperatorService } from "./operator-service.js";
@@ -8,6 +9,11 @@ interface HttpAppOptions {
   writesEnabled?: boolean;
   buildId?: string;
 }
+
+const setMcpCorsHeaders = (response: Response) => {
+  response.set("Access-Control-Allow-Origin", "*");
+  response.set("Access-Control-Expose-Headers", "Mcp-Session-Id");
+};
 
 export const createHttpApp = (
   service: OperatorService,
@@ -27,12 +33,26 @@ export const createHttpApp = (
     });
   });
 
+  app.options(/^\/mcp(?:\/.*)?$/, (_request, response) => {
+    response
+      .status(204)
+      .set({
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "content-type, mcp-session-id",
+        "Access-Control-Expose-Headers": "Mcp-Session-Id",
+      })
+      .send();
+  });
+
   app.post("/mcp", async (request, response) => {
+    setMcpCorsHeaders(response);
     const server = createOperatorMcpServer(service, {
       writesEnabled,
     });
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
+      enableJsonResponse: true,
     });
 
     try {
@@ -56,10 +76,12 @@ export const createHttpApp = (
   });
 
   app.get("/mcp", (_request, response) => {
+    setMcpCorsHeaders(response);
     response.status(405).set("Allow", "POST").send("Method Not Allowed");
   });
 
   app.delete("/mcp", (_request, response) => {
+    setMcpCorsHeaders(response);
     response.status(405).set("Allow", "POST").send("Method Not Allowed");
   });
 
