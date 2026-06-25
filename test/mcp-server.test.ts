@@ -62,6 +62,21 @@ describe("Personal AI Operator MCP contract", () => {
     expect(moduleSchema?.enum).not.toContain("therapy");
   });
 
+  it("marks read-only tools as noauth for ChatGPT developer-mode connectors", async () => {
+    const response = await client.listTools();
+
+    for (const toolName of [
+      "operator_get_current",
+      "operator_get_context",
+      "operator_get_progress",
+    ]) {
+      const tool = response.tools.find((item) => item.name === toolName);
+      expect(tool?._meta).toMatchObject({
+        securitySchemes: [{ type: "noauth" }],
+      });
+    }
+  });
+
   it("returns concise structured context", async () => {
     const response = await client.callTool({
       name: "operator_get_context",

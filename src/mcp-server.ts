@@ -7,6 +7,7 @@ import type { OperatorService } from "./operator-service.js";
 const readableModuleSchema = z.enum(readableModules);
 const writableModuleSchema = z.enum(writableModules);
 const prioritySchema = z.enum(["p1", "p2", "p3", "p4"]);
+const noAuthSecuritySchemes = [{ type: "noauth" as const }];
 
 const toResult = (value: unknown, message: string) => ({
   structuredContent: value as Record<string, unknown>,
@@ -36,6 +37,7 @@ export const createOperatorMcpServer = (
       description:
         "Use when Olga asks what is current, what matters now, or what she should remember today.",
       inputSchema: {},
+      _meta: { securitySchemes: noAuthSecuritySchemes },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async () => {
@@ -51,6 +53,7 @@ export const createOperatorMcpServer = (
       description:
         "Read one allowed memory module before giving context-aware advice. Health and therapy are intentionally unavailable.",
       inputSchema: { module: readableModuleSchema },
+      _meta: { securitySchemes: noAuthSecuritySchemes },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async ({ module }) => {
@@ -66,6 +69,7 @@ export const createOperatorMcpServer = (
       description:
         "Use when Olga asks about progress across current directions and concrete Todoist actions.",
       inputSchema: {},
+      _meta: { securitySchemes: noAuthSecuritySchemes },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async () => {
