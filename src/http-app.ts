@@ -75,6 +75,7 @@ export const createHttpApp = (
       mode: writesEnabled ? "read-write" : "read-only",
       buildId,
       authRequired: auth?.required === true,
+      authProvider: auth?.provider ?? "none",
     });
   });
 

@@ -52,6 +52,7 @@ describe("HTTP app", () => {
       mode: "read-only",
       buildId: "test",
       authRequired: false,
+      authProvider: "none",
     });
 
     const mcpGet = await fetch(`http://127.0.0.1:${port}/mcp`);
