@@ -15,12 +15,12 @@ Implemented:
 - stateless Streamable HTTP `/mcp` endpoint;
 - `/health` endpoint;
 - optional OAuth resource-server mode for ChatGPT connectors;
+- internal single-user OAuth provider for the personal ChatGPT app;
 - five golden prompts for later ChatGPT connector evaluation.
 
 Not connected yet:
 
 - Todoist;
-- Auth0 tenant/env configuration;
 - real cloud Markdown synchronization.
 
 By default the server still uses synthetic in-memory seed data and cannot change the canonical project files or Olga's Todoist account. When `DATABASE_URL` is set, it creates PostgreSQL tables and uses the PostgreSQL memory repository. When `MEMORY_ROOT_DIR` is also set, it imports only the explicitly allowed non-sensitive Markdown files if the database does not already contain that module.
@@ -32,10 +32,34 @@ Cloud deploys are read-only by default. Set `MOBILE_OPERATOR_ENABLE_WRITES=1` on
 ## OAuth mode
 
 No-auth mode is only for safe bootstrap testing. Before exposing real Todoist,
-Markdown memory, or write tools, enable OAuth on Railway:
+Markdown memory, or write tools, enable OAuth on Railway.
+
+Recommended single-user mode for Olga's personal app:
 
 ```bash
 MOBILE_OPERATOR_AUTH_REQUIRED=1
+MOBILE_OPERATOR_AUTH_PROVIDER=internal
+MOBILE_OPERATOR_PUBLIC_URL="https://personal-ai-mobile-operator-v2-production.up.railway.app"
+MOBILE_OPERATOR_OAUTH_CLIENT_ID="personal-ai-operator-chatgpt"
+MOBILE_OPERATOR_OAUTH_CLIENT_SECRET="generate-a-long-random-secret"
+MOBILE_OPERATOR_LOGIN_PIN="choose-a-private-pin"
+MOBILE_OPERATOR_TOKEN_SECRET="generate-another-long-random-secret"
+```
+
+The internal provider exposes:
+
+- `/.well-known/oauth-protected-resource`
+- `/.well-known/oauth-authorization-server`
+- `/.well-known/openid-configuration`
+- `/oauth/authorize`
+- `/oauth/token`
+
+Auth0-compatible mode is still available, but is no longer the recommended
+path for the first personal mobile operator:
+
+```bash
+MOBILE_OPERATOR_AUTH_REQUIRED=1
+MOBILE_OPERATOR_AUTH_PROVIDER=auth0
 MOBILE_OPERATOR_PUBLIC_URL="https://personal-ai-mobile-operator-v2-production.up.railway.app"
 AUTH0_ISSUER_BASE_URL="https://YOUR_TENANT.eu.auth0.com/"
 AUTH0_AUDIENCE="https://personal-ai-mobile-operator-v2-production.up.railway.app"

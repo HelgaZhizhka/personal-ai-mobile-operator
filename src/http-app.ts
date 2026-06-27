@@ -1,9 +1,16 @@
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import express from "express";
 import type { Request, Response } from "express";
 
 import {
   type AuthConfig,
+  createInternalAuthorizationRedirect,
+  exchangeInternalAuthorizationCode,
+  getInternalAuthorizationServerMetadata,
+  getProtectedResourceMetadata,
+  OAuthHttpError,
+  renderInternalAuthorizePage,
   sendUnauthorized,
   verifyRequestAuth,
 } from "./auth.js";
@@ -56,6 +63,7 @@ export const createHttpApp = (
   options: HttpAppOptions = {},
 ) => {
   const app = createMcpExpressApp({ host });
+  app.use(express.urlencoded({ extended: false }));
   const writesEnabled = options.writesEnabled === true;
   const buildId = options.buildId ?? "local";
   const auth = options.auth;
@@ -72,13 +80,71 @@ export const createHttpApp = (
 
   if (auth) {
     app.get("/.well-known/oauth-protected-resource", (_request, response) => {
-      response.json({
-        resource: auth.resource,
-        authorization_servers: [auth.issuer],
-        scopes_supported: [auth.scopes.read, auth.scopes.write],
-        resource_documentation: `${auth.resource}/health`,
-      });
+      response.json(getProtectedResourceMetadata(auth));
     });
+
+    if (auth.provider === "internal") {
+      const metadata = getInternalAuthorizationServerMetadata(auth);
+
+      app.get("/.well-known/oauth-authorization-server", (_request, response) => {
+        response.json(metadata);
+      });
+
+      app.get("/.well-known/openid-configuration", (_request, response) => {
+        response.json(metadata);
+      });
+
+      app.get("/oauth/authorize", (request, response) => {
+        response.type("html").send(renderInternalAuthorizePage(request.query));
+      });
+
+      app.post("/oauth/authorize", (request, response) => {
+        try {
+          response.redirect(
+            302,
+            createInternalAuthorizationRedirect(
+              auth,
+              request.body as Record<string, unknown>,
+            ),
+          );
+        } catch (error) {
+          if (
+            error instanceof OAuthHttpError &&
+            error.error === "access_denied"
+          ) {
+            response
+              .status(error.status)
+              .type("html")
+              .send(
+                renderInternalAuthorizePage(
+                  request.body as Record<string, unknown>,
+                  error.description,
+                ),
+              );
+            return;
+          }
+          const status = error instanceof OAuthHttpError ? error.status : 500;
+          const body =
+            error instanceof OAuthHttpError
+              ? { error: error.error, error_description: error.description }
+              : { error: "server_error" };
+          response.status(status).json(body);
+        }
+      });
+
+      app.post("/oauth/token", (request, response) => {
+        try {
+          response.json(exchangeInternalAuthorizationCode(auth, request));
+        } catch (error) {
+          const status = error instanceof OAuthHttpError ? error.status : 500;
+          const body =
+            error instanceof OAuthHttpError
+              ? { error: error.error, error_description: error.description }
+              : { error: "server_error" };
+          response.status(status).json(body);
+        }
+      });
+    }
   }
 
   app.options(/^\/mcp(?:\/.*)?$/, (_request, response) => {
