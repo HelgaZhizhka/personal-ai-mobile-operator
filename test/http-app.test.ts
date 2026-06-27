@@ -61,7 +61,7 @@ describe("HTTP app", () => {
     );
   });
 
-  it("advertises OAuth protected resource metadata and rejects missing bearer tokens", async () => {
+  it("advertises OAuth metadata, exposes tool discovery, and protects tool calls", async () => {
     const service = new OperatorService(
       new InMemoryMemoryRepository(createSeedDocuments()),
       new InMemoryTaskRepository(),
@@ -94,14 +94,43 @@ describe("HTTP app", () => {
       scopes_supported: ["operator.read", "operator.write"],
     });
 
-    const response = await fetch(`http://127.0.0.1:${port}/mcp`, {
+    const toolsList = await fetch(`http://127.0.0.1:${port}/mcp`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        accept: "application/json, text/event-stream",
+        "content-type": "application/json",
+      },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "initialize",
+        method: "tools/list",
         params: {},
+      }),
+    });
+    expect(toolsList.status).toBe(200);
+    const tools = (await toolsList.json()) as {
+      result?: { tools?: Array<{ name: string; securitySchemes?: unknown[] }> };
+    };
+    expect(tools.result?.tools?.map((tool) => tool.name)).toEqual([
+      "operator_get_current",
+      "operator_get_context",
+      "operator_get_progress",
+    ]);
+    expect(tools.result?.tools?.[0]?.securitySchemes).toEqual([
+      { type: "oauth2", scopes: ["operator.read"] },
+    ]);
+
+    const response = await fetch(`http://127.0.0.1:${port}/mcp`, {
+      method: "POST",
+      headers: {
+        accept: "application/json, text/event-stream",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name: "operator_get_current", arguments: {} },
       }),
     });
 

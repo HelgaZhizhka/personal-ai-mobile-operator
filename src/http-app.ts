@@ -37,6 +37,11 @@ const getRequiredScope = (request: Request, auth: AuthConfig) => {
     : auth.scopes.read;
 };
 
+const requiresRequestAuth = (request: Request) => {
+  const body = request.body as { method?: string } | undefined;
+  return body?.method === "tools/call";
+};
+
 export const createHttpApp = (
   service: OperatorService,
   host: string,
@@ -82,7 +87,7 @@ export const createHttpApp = (
 
   app.post("/mcp", async (request, response) => {
     setMcpCorsHeaders(response);
-    if (auth?.required) {
+    if (auth?.required && requiresRequestAuth(request)) {
       const requiredScope = getRequiredScope(request, auth);
       try {
         await verifyRequestAuth(request, auth, requiredScope);
