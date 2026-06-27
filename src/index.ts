@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { createAuthConfigFromEnv } from "./auth.js";
 import {
   createSeedDocuments,
   InMemoryMemoryRepository,
@@ -20,6 +21,7 @@ const host = process.env.HOST ?? "127.0.0.1";
 const databaseUrl = process.env.DATABASE_URL;
 const memoryRootDir = process.env.MEMORY_ROOT_DIR ?? path.resolve(process.cwd(), "../..");
 const writesEnabled = process.env.MOBILE_OPERATOR_ENABLE_WRITES === "1";
+const auth = createAuthConfigFromEnv(process.env);
 const buildId =
   process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ??
   process.env.APP_BUILD_ID ??
@@ -68,11 +70,12 @@ if (database) {
 
 const tasks = new InMemoryTaskRepository();
 const service = new OperatorService(memory, tasks);
-const app = createHttpApp(service, host, { writesEnabled, buildId });
+const app = createHttpApp(service, host, { writesEnabled, buildId, auth });
 
 const listener = app.listen(port, host, () => {
   console.log(`Personal AI Mobile Operator listening on http://${host}:${port}`);
   console.log(`MCP write tools enabled: ${writesEnabled ? "yes" : "no"}`);
+  console.log(`MCP auth required: ${auth?.required ? "yes" : "no"}`);
   console.log(`Build id: ${buildId}`);
 });
 

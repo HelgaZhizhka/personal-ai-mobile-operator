@@ -44,6 +44,7 @@ describe("HTTP app", () => {
       writesEnabled: false,
       mode: "read-only",
       buildId: "test",
+      authRequired: false,
     });
 
     const mcpGet = await fetch(`http://127.0.0.1:${port}/mcp`);
@@ -58,5 +59,59 @@ describe("HTTP app", () => {
     expect(mcpOptions.headers.get("access-control-allow-methods")).toContain(
       "POST",
     );
+  });
+
+  it("advertises OAuth protected resource metadata and rejects missing bearer tokens", async () => {
+    const service = new OperatorService(
+      new InMemoryMemoryRepository(createSeedDocuments()),
+      new InMemoryTaskRepository(),
+    );
+    const app = createHttpApp(service, "127.0.0.1", {
+      buildId: "test",
+      auth: {
+        required: true,
+        issuer: "https://operator-auth.example.com/",
+        audience: "https://operator.example.com",
+        resource: "https://operator.example.com",
+        protectedResourceMetadataUrl:
+          "https://operator.example.com/.well-known/oauth-protected-resource",
+        scopes: { read: "operator.read", write: "operator.write" },
+      },
+    });
+    const listener = app.listen(0, "127.0.0.1");
+    listeners.push(listener);
+
+    await new Promise<void>((resolve) => listener.once("listening", resolve));
+    const { port } = listener.address() as AddressInfo;
+
+    const metadata = await fetch(
+      `http://127.0.0.1:${port}/.well-known/oauth-protected-resource`,
+    );
+    expect(metadata.status).toBe(200);
+    await expect(metadata.json()).resolves.toMatchObject({
+      resource: "https://operator.example.com",
+      authorization_servers: ["https://operator-auth.example.com/"],
+      scopes_supported: ["operator.read", "operator.write"],
+    });
+
+    const response = await fetch(`http://127.0.0.1:${port}/mcp`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {},
+      }),
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("www-authenticate")).toContain(
+      "resource_metadata",
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      error: "unauthorized",
+      scope: "operator.read",
+    });
   });
 });

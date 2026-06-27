@@ -1,18 +1,40 @@
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 
+import {
+  type AuthConfig,
+  sendUnauthorized,
+  verifyRequestAuth,
+} from "./auth.js";
 import { createOperatorMcpServer } from "./mcp-server.js";
 import type { OperatorService } from "./operator-service.js";
 
 interface HttpAppOptions {
   writesEnabled?: boolean;
   buildId?: string;
+  auth?: AuthConfig;
 }
 
 const setMcpCorsHeaders = (response: Response) => {
   response.set("Access-Control-Allow-Origin", "*");
   response.set("Access-Control-Expose-Headers", "Mcp-Session-Id");
+};
+
+const writeToolNames = new Set([
+  "operator_save_update",
+  "operator_create_task",
+  "operator_undo_memory",
+]);
+
+const getRequiredScope = (request: Request, auth: AuthConfig) => {
+  const body = request.body as
+    | { method?: string; params?: { name?: string } }
+    | undefined;
+  const toolName = body?.method === "tools/call" ? body.params?.name : undefined;
+  return toolName && writeToolNames.has(toolName)
+    ? auth.scopes.write
+    : auth.scopes.read;
 };
 
 export const createHttpApp = (
@@ -23,6 +45,7 @@ export const createHttpApp = (
   const app = createMcpExpressApp({ host });
   const writesEnabled = options.writesEnabled === true;
   const buildId = options.buildId ?? "local";
+  const auth = options.auth;
 
   app.get("/health", (_request, response) => {
     response.json({
@@ -30,8 +53,20 @@ export const createHttpApp = (
       writesEnabled,
       mode: writesEnabled ? "read-write" : "read-only",
       buildId,
+      authRequired: auth?.required === true,
     });
   });
+
+  if (auth) {
+    app.get("/.well-known/oauth-protected-resource", (_request, response) => {
+      response.json({
+        resource: auth.resource,
+        authorization_servers: [auth.issuer],
+        scopes_supported: [auth.scopes.read, auth.scopes.write],
+        resource_documentation: `${auth.resource}/health`,
+      });
+    });
+  }
 
   app.options(/^\/mcp(?:\/.*)?$/, (_request, response) => {
     response
@@ -47,8 +82,20 @@ export const createHttpApp = (
 
   app.post("/mcp", async (request, response) => {
     setMcpCorsHeaders(response);
+    if (auth?.required) {
+      const requiredScope = getRequiredScope(request, auth);
+      try {
+        await verifyRequestAuth(request, auth, requiredScope);
+      } catch (error) {
+        console.warn("MCP authorization failed", error);
+        sendUnauthorized(response, auth, requiredScope);
+        return;
+      }
+    }
+
     const server = createOperatorMcpServer(service, {
       writesEnabled,
+      authRequired: auth?.required === true,
     });
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,

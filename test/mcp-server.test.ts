@@ -77,6 +77,44 @@ describe("Personal AI Operator MCP contract", () => {
     }
   });
 
+  it("marks read-only tools as oauth2 when auth is required", async () => {
+    const service = new OperatorService(
+      new InMemoryMemoryRepository(createSeedDocuments()),
+      new InMemoryTaskRepository(),
+    );
+    const authServer = createOperatorMcpServer(service, {
+      writesEnabled: false,
+      authRequired: true,
+    });
+    const authClient = new Client(
+      { name: "mobile-operator-auth-test", version: "0.1.0" },
+      { capabilities: {} },
+    );
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+
+    await Promise.all([
+      authServer.connect(serverTransport),
+      authClient.connect(clientTransport),
+    ]);
+
+    try {
+      const response = await authClient.listTools();
+      for (const toolName of [
+        "operator_get_current",
+        "operator_get_context",
+        "operator_get_progress",
+      ]) {
+        const tool = response.tools.find((item) => item.name === toolName);
+        expect(tool?._meta).toMatchObject({
+          securitySchemes: [{ type: "oauth2", scopes: ["operator.read"] }],
+        });
+      }
+    } finally {
+      await Promise.all([authClient.close(), authServer.close()]);
+    }
+  });
+
   it("returns concise structured context", async () => {
     const response = await client.callTool({
       name: "operator_get_context",

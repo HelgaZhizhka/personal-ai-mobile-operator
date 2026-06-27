@@ -9,6 +9,9 @@ const readableModuleSchema = z.enum(readableModules);
 const writableModuleSchema = z.enum(writableModules);
 const prioritySchema = z.enum(["p1", "p2", "p3", "p4"]);
 const noAuthSecuritySchemes = [{ type: "noauth" as const }];
+const oauthReadSecuritySchemes = [
+  { type: "oauth2" as const, scopes: ["operator.read"] },
+];
 const oauthWriteSecuritySchemes = [
   { type: "oauth2" as const, scopes: ["operator.write"] },
 ];
@@ -19,15 +22,21 @@ const emptyInputSchema = {
   properties: {},
 };
 
-const readOnlyTools = [
+type ToolSecuritySchemes =
+  | typeof noAuthSecuritySchemes
+  | typeof oauthReadSecuritySchemes
+  | typeof oauthWriteSecuritySchemes;
+
+const createReadOnlyTools = (securitySchemes: ToolSecuritySchemes) =>
+  [
   {
     name: "operator_get_current",
     title: "Get current focus",
     description:
       "Use when Olga asks what is current, what matters now, or what she should remember today.",
     inputSchema: emptyInputSchema,
-    securitySchemes: noAuthSecuritySchemes,
-    _meta: { securitySchemes: noAuthSecuritySchemes },
+    securitySchemes,
+    _meta: { securitySchemes },
     annotations: { readOnlyHint: true, openWorldHint: false },
     execution: { taskSupport: "forbidden" },
   },
@@ -47,8 +56,8 @@ const readOnlyTools = [
       },
       required: ["module"],
     },
-    securitySchemes: noAuthSecuritySchemes,
-    _meta: { securitySchemes: noAuthSecuritySchemes },
+    securitySchemes,
+    _meta: { securitySchemes },
     annotations: { readOnlyHint: true, openWorldHint: false },
     execution: { taskSupport: "forbidden" },
   },
@@ -58,12 +67,12 @@ const readOnlyTools = [
     description:
       "Use when Olga asks about progress across current directions and concrete Todoist actions.",
     inputSchema: emptyInputSchema,
-    securitySchemes: noAuthSecuritySchemes,
-    _meta: { securitySchemes: noAuthSecuritySchemes },
+    securitySchemes,
+    _meta: { securitySchemes },
     annotations: { readOnlyHint: true, openWorldHint: false },
     execution: { taskSupport: "forbidden" },
   },
-] as const;
+  ] as const;
 
 const writeTools = [
   {
@@ -146,7 +155,11 @@ const writeTools = [
 const installOpenAiCompatibleToolsList = (
   server: McpServer,
   writesEnabled: boolean,
+  authRequired: boolean,
 ) => {
+  const readOnlyTools = createReadOnlyTools(
+    authRequired ? oauthReadSecuritySchemes : noAuthSecuritySchemes,
+  );
   server.server.setRequestHandler(ListToolsRequestSchema, () => ({
     tools: writesEnabled ? [...readOnlyTools, ...writeTools] : readOnlyTools,
   }));
@@ -159,12 +172,15 @@ const toResult = (value: unknown, message: string) => ({
 
 interface OperatorMcpServerOptions {
   writesEnabled?: boolean;
+  authRequired?: boolean;
 }
 
 export const createOperatorMcpServer = (
   service: OperatorService,
   options: OperatorMcpServerOptions = { writesEnabled: true },
 ) => {
+  const readSecuritySchemes =
+    options.authRequired === true ? oauthReadSecuritySchemes : noAuthSecuritySchemes;
   const server = new McpServer(
     { name: "personal-ai-mobile-operator", version: "0.1.0" },
     {
@@ -180,7 +196,7 @@ export const createOperatorMcpServer = (
       description:
         "Use when Olga asks what is current, what matters now, or what she should remember today.",
       inputSchema: {},
-      _meta: { securitySchemes: noAuthSecuritySchemes },
+      _meta: { securitySchemes: readSecuritySchemes },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async () => {
@@ -196,7 +212,7 @@ export const createOperatorMcpServer = (
       description:
         "Read one allowed memory module before giving context-aware advice. Health and therapy are intentionally unavailable.",
       inputSchema: { module: readableModuleSchema },
-      _meta: { securitySchemes: noAuthSecuritySchemes },
+      _meta: { securitySchemes: readSecuritySchemes },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async ({ module }) => {
@@ -212,7 +228,7 @@ export const createOperatorMcpServer = (
       description:
         "Use when Olga asks about progress across current directions and concrete Todoist actions.",
       inputSchema: {},
-      _meta: { securitySchemes: noAuthSecuritySchemes },
+      _meta: { securitySchemes: readSecuritySchemes },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async () => {
@@ -222,7 +238,7 @@ export const createOperatorMcpServer = (
   );
 
   if (options.writesEnabled === false) {
-    installOpenAiCompatibleToolsList(server, false);
+    installOpenAiCompatibleToolsList(server, false, options.authRequired === true);
     return server;
   }
 
@@ -238,6 +254,7 @@ export const createOperatorMcpServer = (
         nextContent: z.string().min(1).max(50_000),
         reason: z.string().min(3).max(500),
       },
+      _meta: { securitySchemes: oauthWriteSecuritySchemes },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -270,6 +287,7 @@ export const createOperatorMcpServer = (
         priority: prioritySchema.default("p3"),
         project: z.string().max(200).optional(),
       },
+      _meta: { securitySchemes: oauthWriteSecuritySchemes },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -290,6 +308,7 @@ export const createOperatorMcpServer = (
       description:
         "Restore the document version immediately before a known revision. Use only after Olga explicitly asks to undo it.",
       inputSchema: { revisionId: z.string().uuid() },
+      _meta: { securitySchemes: oauthWriteSecuritySchemes },
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
@@ -306,7 +325,7 @@ export const createOperatorMcpServer = (
     },
   );
 
-  installOpenAiCompatibleToolsList(server, true);
+  installOpenAiCompatibleToolsList(server, true, options.authRequired === true);
 
   return server;
 };
