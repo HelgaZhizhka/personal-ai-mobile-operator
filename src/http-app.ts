@@ -21,6 +21,14 @@ const setMcpCorsHeaders = (response: Response) => {
   response.set("Access-Control-Expose-Headers", "Mcp-Session-Id");
 };
 
+const mcpAllowedHeaders = [
+  "accept",
+  "authorization",
+  "content-type",
+  "mcp-protocol-version",
+  "mcp-session-id",
+].join(", ");
+
 const writeToolNames = new Set([
   "operator_save_update",
   "operator_create_task",
@@ -79,7 +87,7 @@ export const createHttpApp = (
       .set({
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "content-type, mcp-session-id",
+        "Access-Control-Allow-Headers": mcpAllowedHeaders,
         "Access-Control-Expose-Headers": "Mcp-Session-Id",
       })
       .send();

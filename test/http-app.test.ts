@@ -59,6 +59,9 @@ describe("HTTP app", () => {
     expect(mcpOptions.headers.get("access-control-allow-methods")).toContain(
       "POST",
     );
+    expect(mcpOptions.headers.get("access-control-allow-headers")).toContain(
+      "authorization",
+    );
   });
 
   it("advertises OAuth metadata, exposes tool discovery, and protects tool calls", async () => {
